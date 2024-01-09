@@ -1,6 +1,3 @@
-# azure_openai_35turbo.py
-
-"""Test Microsoft Azure's ChatCompletion endpoint"""
 import os
 
 import openai
@@ -13,7 +10,7 @@ helpers.init()
 
 openai.api_type = os.environ["OPENAI_API_TYPE"]
 if openai.api_type == "azure":
-    openai.api_version = "2023-05-15"
+    openai.api_version = "2023-12-01"
     client = openai.AzureOpenAI(
         api_key=os.environ["AZURE_OPENAI_KEY"],
         azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
@@ -65,7 +62,7 @@ def get_chat_completion(
 
     Note that:
     - OpenAI from OpenAI uses `model="gpt-3.5-turbo"`!
-    - OpenAI from Azure uses `model="‹deployment name›"`! ⚠️
+    - OpenAI from Azure uses `model="‹deployment name›"`!
 
     When using Azure, you need to set the model variable to the deployment name
       you chose when you deployed a model to your resource. Try something like
