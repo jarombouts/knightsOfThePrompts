@@ -71,5 +71,5 @@ def load_secrets(secrets_file: str = ".env"):
 def init():
     """Initialize the environment."""
     set_cwd()
-    ensure_requirements()
+    # ensure_requirements()
     load_secrets()

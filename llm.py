@@ -1,4 +1,5 @@
 import os
+import time
 
 import openai
 import pydantic
@@ -51,6 +52,7 @@ class Message(pydantic.BaseModel):
 def get_chat_completion(
     messages: list[Message],
     model: str,
+    tools: list = None,
     max_tokens: int = 128,
     temperature: float = 0.9,
     top_p: float = 1.0,
@@ -70,13 +72,62 @@ def get_chat_completion(
     When using OpenAI, you need to set the model variable to something listed
       in their docs, such as "gpt-3.5-turbo".
     """
-    return client.chat.completions.create(
-        # dump messages into a list of dicts
-        messages=[m.model_dump() for m in messages],
+    if tools:  # jeroen seriously fix this shit
+        return client.chat.completions.create(
+            # dump messages into a list of dicts
+            messages=[m.model_dump() for m in messages],
+            model=model,
+            tools=tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+        )
+    else:
+        return client.chat.completions.create(
+            # dump messages into a list of dicts
+            messages=[m.model_dump() for m in messages],
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+        )
+
+
+def create_assistant(
+    name: str, instructions: str, tools: list[dict], model: str, file_paths: list[str]
+):
+    # see https://platform.openai.com/docs/assistants/tools/
+    # must be one of the specified tool types
+    for tool in tools:
+        assert tool["type"] in ("code_interpreter", "retrieval", "function")
+
+    # create the assistant
+    assistant = client.beta.assistants.create(
+        name=name,
+        instructions=instructions,
+        tools=tools,
         model=model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        top_p=top_p,
-        frequency_penalty=frequency_penalty,
-        presence_penalty=presence_penalty,
     )
+
+    # upload files, and attach to the assistant
+    for file_path in file_paths:
+        this_file = client.files.create(
+            file=open(file_path, "rb"), purpose="assistants"
+        )
+        assistant_attached_file = client.beta.assistants.files.create(
+            assistant_id=assistant.id, file_id=this_file.id
+        )
+
+    return assistant
+
+
+def delete_all_assistants():
+    """
+    Delete all assistants. Useful for testing.
+    """
+    for assistant in client.beta.assistants.list():
+        client.beta.assistants.delete(assistant.id)
