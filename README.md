@@ -28,3 +28,11 @@ jupyter notebook --notebook-dir=.
 
 ## Advanced stuff
 
+If you want to graduate from putting spaghetti in a notebook, you can
+check out the `code-samples` folder for an example on 'function calling',
+where the LLM can decide to gather external info using python functions.
+This is an approach somewhere between 'always do RAG' and one-shot question
+answering through prompt engineering.
+
+There's also an example on using retrieval with the OpenAI 'Assistants' API, to
+have the chatbot access an external knowledge base. See `retrieval.py`.
