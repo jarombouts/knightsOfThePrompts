@@ -1,5 +1,4 @@
 import os
-import time
 
 import openai
 import pydantic
@@ -98,8 +97,18 @@ def get_chat_completion(
 
 
 def create_assistant(
-    name: str, instructions: str, tools: list[dict], model: str, file_paths: list[str]
+    name: str,
+    instructions: str,
+    model: str,
+    tools: list[dict] = None,
+    file_paths: list[str] = None,
 ):
+    # replace non-mutable kwarg defaults
+    if tools is None:
+        tools = []
+    if file_paths is None:
+        file_paths = []
+
     # see https://platform.openai.com/docs/assistants/tools/
     # must be one of the specified tool types
     for tool in tools:

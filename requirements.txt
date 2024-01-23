@@ -1,3 +1,4 @@
 openai==1.6.1
 pydantic==2.5.3
 loguru==0.7.2
+jupyter==1.0.0

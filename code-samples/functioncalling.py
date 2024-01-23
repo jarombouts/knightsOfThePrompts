@@ -1,21 +1,21 @@
 """
 Example showing how you can have the LLM request function calls based on user input.
 
-We take an example of a banking assistant with one skill (modyfing user accounts)
-and two intents (change address and change phone number).
+We take an example of a banking assistant equipped with a couple of 'tools', which are
+external functions to retrieve knowledge from the outside world.
 
-The LLM automatically detects if the user needs the "modify user account" skill,
-and changes the active skillset from "general" to "modify user account".
+When called with a list of tools, the LLM will decide which tool to call based on the
+user input. You should process the function call(s) associated with the chosen tool
+yourself and return the result to the LLM.
 
-When "modify user account" is active, the LLM will automatically detect if the user
-wants to change the address or the phone number, and will emit parameters that can
-go into appropriate functions.
+See https://platform.openai.com/docs/guides/function-calling for more info.
+The __main__ block simulates a conversation so you learn how you would use this.
 """
 import llm
 
 import pydantic
 import json
-from typing import Optional
+from loguru import logger
 
 
 # First define some functions that the model is allowed to call
@@ -53,11 +53,15 @@ class LookupUser(pydantic.BaseModel):
     """
     Resolves a user by name, bank account number, or address.
 
-    Before calling this function, you must know or ask the user to provide at least one
+    When calling this function, you must know or ask the user to provide at least one
       of the following:
     - The name of the user
     - The bank account number of the user
     - The address of the user
+
+    If you don't know the user's name, bank account number, or address, you should ask
+    the user to provide one of these using the optional 'request_more_information'
+    field.
     """
 
     name: str = pydantic.Field(
@@ -68,6 +72,11 @@ class LookupUser(pydantic.BaseModel):
     )
     address: str = pydantic.Field(
         description="The address of the user to look up", default=None
+    )
+    request_more_information: str = pydantic.Field(
+        description="If you don't have all the information you need to look up the "
+        "user, you can ask the user to provide more information here",
+        default=None,
     )
 
     # validate that one or more of the fields is set
@@ -123,7 +132,10 @@ def create_openai_tools(function_schemas: list):
 
 def process_tool_calls(tool_calls: list):
     for t in tool_calls:
-        ... # process tool calls here
+        ...  # process tool calls here
+        logger.debug(
+            f"got tool call {t}, please finish this function and return the results"
+        )
 
     return tool_calls
 
@@ -133,7 +145,9 @@ if __name__ == "__main__":
     messages = [
         llm.Message(
             role="system",
-            content="You are a banking assistant. You are tasked with greeting the user and figuring out what they want to do.",
+            content="You are a banking assistant. You are tasked with greeting the "
+            "user and figuring out what they want to do. Only write your textual "
+            "response, don't prefix with 'Assistant: ' or anything like that.",
         ),
         llm.Message(
             role="assistant",
@@ -150,7 +164,7 @@ if __name__ == "__main__":
         messages=messages,
         model="gpt-35-turbo-16k",
     )
-    print("assistant: " + initial_greeting.choices[0].message.content)
+    logger.info("[assistant] " + initial_greeting.choices[0].message.content)
     messages.append(
         llm.Message(
             role="assistant", content=initial_greeting.choices[0].message.content
@@ -164,7 +178,7 @@ if __name__ == "__main__":
             content="I want to change my address.",
         )
     )
-    print("user: " + messages[-1].content)
+    logger.info("[user] " + messages[-1].content)
 
     # the llm will decide which function to call
     llm_tool_choice = llm.get_chat_completion(
@@ -174,13 +188,14 @@ if __name__ == "__main__":
             [ChangeAddress, ChangePhoneNumber, LookupUser, RequestMoreInformation]
         ),
     )
-    tool_call_results = process_tool_calls( # you need to expand handling tool calls here
+    tool_call_results = process_tool_calls(  # you need to expand handling tool calls here
+        # probably the llm wants to look up the user first
         tool_calls=llm_tool_choice.choices[0].message.tool_calls
     )
     # ... and handle the case where there are no tool calls but instead just messages
     # see https://platform.openai.com/docs/guides/function-calling for more info
     for r in tool_call_results:
-        print(f"inserting result of tool call to {r.function}")
+        logger.debug(f"inserting result of tool call to {r.function}")
         messages.append(
             llm.Message(
                 role="assistant",
@@ -198,4 +213,29 @@ if __name__ == "__main__":
         messages=messages,
         model="gpt-35-turbo-16k",
     )
-    print("assistant: " + llm_response_after_tool_call.choices[0].message.content)
+    logger.info("[assistant] " + llm_response_after_tool_call.choices[0].message.content)
+
+    # user gives an address and full name
+    messages.append(
+        llm.Message(
+            role="user",
+            content="My address is 123 Sesame Street, my name is Big Bird.",
+        )
+    )
+    logger.info("[user] " + messages[-1].content)
+
+    # Let's see if the llm can figure out what to do now, if it correctly tries to call
+    # the LookupUser with name+address to get the user account ID! (it should...)
+    llm_response_after_2nd_user_input = llm.get_chat_completion(
+        messages=messages,
+        model="gpt-35-turbo-16k",
+        tools=create_openai_tools(
+            [ChangeAddress, ChangePhoneNumber, LookupUser, RequestMoreInformation]
+        ),
+    )
+    logger.debug(f"llm_response_after_2nd_user_input: {llm_response_after_2nd_user_input}")
+
+    # open questions: how do you make this question - answer - tool call - question
+    # loop generic? where would you handle authentication and authorization, and
+    # verification of the data the user supplies?
+    ...
